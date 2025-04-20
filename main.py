@@ -2,6 +2,9 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 import logging
+import pandas as pd
+import numpy as np
+import re
 
 # Load values from the .env file
 load_dotenv()
@@ -9,9 +12,6 @@ load_dotenv()
 # Pull the Groq API key from the environment
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# This raises an error if the API key isn't set and stops the program
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY is not set. Please check your .env file.")
 
 # Set up logging so we can keep track of all chats in a log file
 logging.basicConfig(
@@ -25,6 +25,16 @@ Since this is a customer support assistant, I will assume a generic company call
 This company sells healthy, nutritious and affordable food items.
 Their main customers are people that  are intentional about what they eat.
 '''
+
+
+products=pd.read_csv("livehealthy_products.csv")
+sales = pd.read_csv("livehealthy_sales_data.csv")
+
+# Convert product info to readable text
+product_info = products.to_string(index=False)
+
+# Convert sales info to readable text
+#sales_info = sales.to_string(index=False)  
 
 # Show a personalized welcome message for our company
 print("Dear Khadijah,\nWelcome to the LiveHealthy Customer Support Assistant.")
@@ -59,13 +69,26 @@ def get_valid_option():
         else:
             print("Invalid choice. Please enter 1, 2, or 3. or 'Exit'")
 
+def get_order_details(order_id):
+    order = sales[sales['Order ID'] == order_id]
+    if not order.empty:
+        return order.to_string(index=False)
+    else:
+        return "Sorry, no order found with that ID."
 
 # This function sends a message to Groq and returns the assistant’s reply
-def get_response(user_message, query_type):
+def get_response(user_message, query_type): # Check if user_message contains something like 'ORD0001'
+    match = re.search(r'\bORD\d{4}\b', user_message)
+    if match:
+        order_id = match.group()
+        sales_info = get_order_details(order_id)
+    else:
+        sales_info = "No specific order ID detected in the query."
+
     # Tell the model what kind of role it’s playing (customer support)
     system_message = (
         f"You are a professional support agent for an online store that sells healthy food. "
-        f"The user has selected '{query_type}'. Respond accordingly, being clear, polite, and concise."
+        f"The user has selected '{query_type}'. The products we sell and their prices are in {product_info}. You can get sales information from {sales_info}. Respond accordingly, being clear, polite, and concise."
     )
 
     # Make a chat completion request with user + system messages
@@ -135,5 +158,5 @@ while True:
                 else:
                     print("Please enter 'yes' or 'no'.")
                     
-if __name__ == "__main__":
-    main()
+
+
